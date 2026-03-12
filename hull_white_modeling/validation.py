@@ -226,6 +226,59 @@ def validate_paths(paths, params, yield_curve):
     
     print("="*60)
 
+def plot_paths_simple(paths, params, n_paths_display=75, save_file=None):
+    """
+    Simple single-panel path visualization with colorful, visible paths
+    
+    Args:
+        paths: Array of rate paths
+        params: Parameter dict
+        n_paths_display: Number of paths to show (default 75)
+        save_file: Optional filename to save (e.g., 'paths.png')
+    """
+    import matplotlib.pyplot as plt
+    
+    N_paths = paths.shape[0]
+    t_grid = params['t_grid'][:paths.shape[1]]
+    theta = params['theta'][:paths.shape[1]]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(14, 8), facecolor='white')
+    
+    # Individual paths with different colors
+    colors = plt.cm.tab20c(np.linspace(0, 1, n_paths_display))
+    
+    for i in range(min(n_paths_display, N_paths)):
+        ax.plot(t_grid, paths[i, :] * 100, 
+                color=colors[i], alpha=0.5, linewidth=1.0)
+    
+    # Mean path (red, slightly thicker)
+    mean_path = paths.mean(axis=0)
+    ax.plot(t_grid, mean_path * 100, 
+            'r-', linewidth=2.5, label='Mean Path', zorder=10)
+    
+    # Theta (black dashed, slightly thicker)
+    ax.plot(t_grid, theta * 100, 
+            'k--', linewidth=2.5, label='θ(t) - Target', zorder=10)
+    
+    # Formatting
+    ax.set_xlabel('Time (years)', fontsize=13)
+    ax.set_ylabel('Interest Rate (%)', fontsize=13)
+    ax.set_title(f'Hull-White Interest Rate Paths ({n_paths_display} of {N_paths} shown)', 
+                 fontsize=15, fontweight='bold')
+    ax.legend(fontsize=12, loc='best')
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim([0, t_grid[-1]])
+    ax.margins(y=0.1)
+    
+    plt.tight_layout()
+    
+    if save_file:
+        plt.savefig(save_file, dpi=300, facecolor='white', bbox_inches='tight')
+        print(f"✓ Saved to {save_file}")
+    
+    plt.show()
+
 
 if __name__ == "__main__":
     # Test visualization with saved paths
@@ -252,5 +305,5 @@ if __name__ == "__main__":
     
     # Visualize
     print("\nGenerating visualizations...")
-    plot_rate_paths(paths, params, n_paths_display=100)
+    plot_paths_simple(paths, params, n_paths_display=100)
     plot_rate_histogram(paths, params)
