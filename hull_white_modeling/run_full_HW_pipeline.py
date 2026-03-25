@@ -155,7 +155,7 @@ def main():
     paths = generate_paths(params, N_paths=N_PATHS, random_seed=42)
     
     # Save paths
-    output_file = parent_dir / 'data_io' / 'rate_paths_full_pipeline.npz'
+    output_file = parent_dir / 'data_io' / 'rate_paths.npz'
     save_paths(paths, params, filepath=str(output_file))
     
     # -------------------------------------------------------------------------

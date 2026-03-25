@@ -74,8 +74,8 @@ def generate_paths(params, N_paths=1000, N_steps=360, dt=1/12, random_seed=None)
         # Stochastic diffusion term: sigma*sqrt(dt)*epsilon
         diffusion = sigma * sqrt_dt * epsilon[:, step]
         
-        # Euler step
-        r[:, step + 1] = r[:, step] + drift + diffusion
+        # Euler step (add a floor of zero to avoid negative rates)
+        r[:, step + 1] = np.maximum(r[:, step] + drift + diffusion, 0.0)
     
     print("[OK] Path generation complete!")
     
@@ -163,15 +163,15 @@ def generate_paths_antithetic(params, N_paths=1000, N_steps=360, dt=1/12, random
     for step in range(N_steps):
         theta_t = theta[step]
         
-        # Normal paths (first half)
+        # Normal paths (first half) (added floor to prevent negative rates)
         drift_normal = a * (theta_t - r[:N_pairs, step]) * dt
         diffusion_normal = sigma * sqrt_dt * epsilon[:, step]
-        r[:N_pairs, step + 1] = r[:N_pairs, step] + drift_normal + diffusion_normal
+        r[:N_pairs, step + 1] = np.maximum(r[:N_pairs, step] + drift_normal + diffusion_normal, 0.0)
         
-        # Antithetic paths (second half) - use negated shocks
+        # Antithetic paths (second half) - use negated shocks (similar floor added)
         drift_anti = a * (theta_t - r[N_pairs:, step]) * dt
         diffusion_anti = sigma * sqrt_dt * (-epsilon[:, step])  # Negated!
-        r[N_pairs:, step + 1] = r[N_pairs:, step] + drift_anti + diffusion_anti
+        r[N_pairs:, step + 1] = np.maximum(r[N_pairs:, step] + drift_anti + diffusion_anti, 0.0)
     
     print(f"[OK] Generated {N_paths} paths ({N_pairs} pairs)")
     
