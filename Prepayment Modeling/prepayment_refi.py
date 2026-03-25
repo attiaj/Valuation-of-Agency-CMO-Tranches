@@ -51,8 +51,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from pathlib import Path
-
 # Make __file__ behave in a notebook so helper functions work unchanged
 if "__file__" not in globals():
     _nb_name = "prepayment_refi.ipynb"
@@ -111,7 +109,7 @@ class RefiParams:
     pass_through_beta: float = 1.0
     max_refi_smm: float = 0.06
     threshold: float = 0.95
-    dispersion: float = 0.03
+    dispersion: float = 0.10
     refi_term_months: int = 360
     rate_floor: float = 0.0001
     beta_passive: float = 0.25
@@ -671,19 +669,6 @@ def apd_aggregate_smm(
 
 
 
-def mock_turnover(n_steps: int, base_turnover: float = 0.003) -> np.ndarray:
-    """Flat mock turnover used only for local testing."""
-    return np.full(n_steps, base_turnover, dtype=float)
-
-
-
-def mock_psi(n_steps: int, psi0: float = 0.80, decay: float = 0.0025) -> np.ndarray:
-    """Simple decaying active-borrower share used only for local testing."""
-    t = np.arange(n_steps)
-    psi = psi0 * np.exp(-decay * t)
-    return np.clip(psi, 0.10, 1.0)
-
-
 # -----------------------------------------------------------------------------
 # High-level convenience: use the uploaded project files directly
 # -----------------------------------------------------------------------------
@@ -724,25 +709,22 @@ def infer_refi_inputs_from_bundle(bundle: ProjectDataBundle) -> Dict[str, Any]:
     }
 
 
+# -----------------------------------------------------------------------------
+# Demo / script entrypoint
+# -----------------------------------------------------------------------------
 
-def run_refi_from_project_files(
-    tranche_sheet: str = "A Tranche",
-    path_file: str = "rate_paths.npz",
-    params: Optional[RefiParams] = None,
-) -> Dict[str, Any]:
-    """End-to-end refi run using the files the team uploaded."""
-    if params is None:
-        params = RefiParams()
 
+def demo_run(tranche_sheet: str = "A Tranche", path_file: str = "rate_paths.npz") -> None:
+    """Quick demo using the team's uploaded files.
+
+    Loads all data files, infers pool inputs from Bloomberg, and runs
+    refinancing_smm_paths directly. Prints a 12-month summary table.
+    """
     bundle = load_project_data_bundle(tranche_sheet=tranche_sheet, path_file=path_file)
     inputs = infer_refi_inputs_from_bundle(bundle)
+    params = RefiParams()
 
-    # Temporary mocks until teammates' code is wired in.
-    n_steps = len(bundle.t_grid)
-    turnover = mock_turnover(n_steps)
-    psi_t = mock_psi(n_steps)
-
-    # First pass to compute t=0 payment ratio.
+    # First pass to get t=0 payment ratio
     prelim = refinancing_smm_paths(
         short_rate_paths=bundle.paths,
         current_note_rate=inputs["current_note_rate"],
@@ -751,20 +733,19 @@ def run_refi_from_project_files(
         treasury_curve=bundle.treasury_curve,
         r0=bundle.r0,
     )
+    pay_ratio_0 = float(prelim["payment_ratio"].mean(axis=0)[0])
+    params.max_refi_smm = calibrate_max_refi_from_observed_cpr(
+        observed_cpr_pct=inputs["observed_cpr_1m"],
+        pay_ratio_0=pay_ratio_0,
+        turnover_smm_0=0.002022,   # turnover_smm(step=1) from prepayment_turnover
+        psi_0=0.70,
+        beta_passive=params.beta_passive,
+        threshold=params.threshold,
+        dispersion=params.dispersion,
+        default_max_refi_smm=params.max_refi_smm,
+    )
 
-    if params.calibrate_max_refi_from_observed_cpr:
-        pay_ratio_0 = float(prelim["payment_ratio"].mean(axis=0)[0])
-        params.max_refi_smm = calibrate_max_refi_from_observed_cpr(
-            observed_cpr_pct=inputs["observed_cpr_1m"],
-            pay_ratio_0=pay_ratio_0,
-            turnover_smm_0=float(turnover[0]),
-            psi_0=float(psi_t[0]),
-            beta_passive=params.beta_passive,
-            threshold=params.threshold,
-            dispersion=params.dispersion,
-            default_max_refi_smm=params.max_refi_smm,
-        )
-
+    # Main pass - uses calibrated max_refi_smm
     result = refinancing_smm_paths(
         short_rate_paths=bundle.paths,
         current_note_rate=inputs["current_note_rate"],
@@ -774,164 +755,43 @@ def run_refi_from_project_files(
         r0=bundle.r0,
     )
 
+    avg_pr   = result["payment_ratio"].mean(axis=0)
     avg_refi = result["refi_smm"].mean(axis=0)
-    avg_pr = result["payment_ratio"].mean(axis=0)
-    total_smm = apd_aggregate_smm(
-        refi_smm=avg_refi,
-        turnover_smm=turnover,
-        psi_t=psi_t,
-        beta=params.beta_passive,
-    )
-
-    return {
-        "bundle": bundle,
-        "inputs": inputs,
-        "params": params,
-        "result": result,
-        "avg_refi_smm": avg_refi,
-        "avg_payment_ratio": avg_pr,
-        "turnover": turnover,
-        "psi_t": psi_t,
-        "total_smm": total_smm,
-    }
-
-# -----------------------------------------------------------------------------
-# Demo / script entrypoint
-# -----------------------------------------------------------------------------
-
-
-def demo_run(tranche_sheet: str = "A Tranche", path_file: str = "rate_paths.npz") -> None:
-    """Quick demo using the team's uploaded files."""
-    output = run_refi_from_project_files(tranche_sheet=tranche_sheet, path_file=path_file)
-    bundle = output["bundle"]
-    bloom = bundle.bloomberg
-    inputs = output["inputs"]
-    params = output["params"]
-    avg_pr = output["avg_payment_ratio"]
-    avg_refi = output["avg_refi_smm"]
-    total_smm = output["total_smm"]
+    bloom    = bundle.bloomberg
 
     print("=" * 78)
     print("PREPAYMENT REFINANCING DEMO")
     print("=" * 78)
-    print(f"Rate path file: {bundle.path_file.name}")
-    print(f"Loaded paths : {bundle.paths.shape[0]:,} x {bundle.paths.shape[1]}")
+    print(f"Rate path file       : {bundle.path_file.name}")
+    print(f"Loaded paths         : {bundle.paths.shape[0]:,} x {bundle.paths.shape[1]}")
     print(f"Initial short rate r0: {bundle.r0:.4%}")
 
     if bundle.treasury_curve is not None:
-        ten_year = bundle.treasury_curve.loc[np.isclose(bundle.treasury_curve['maturity_years'], 10.0), 'rate']
+        ten_year = bundle.treasury_curve.loc[
+            np.isclose(bundle.treasury_curve["maturity_years"], 10.0), "rate"
+        ]
         if not ten_year.empty:
-            print(f"Treasury 10Y anchor: {float(ten_year.iloc[0]):.4%}")
+            print(f"Treasury 10Y anchor  : {float(ten_year.iloc[0]):.4%}")
 
     if bloom is not None:
-        print(f"Deal / tranche: {bloom.deal} / {bloom.tranche_class} ({bloom.tranche_sheet})")
-        print(f"Bloomberg tranche coupon   : {bloom.tranche_coupon if bloom.tranche_coupon is not None else float('nan'):.4%}")
-        print(f"Bloomberg collateral coupon: {bloom.collateral_coupon if bloom.collateral_coupon is not None else float('nan'):.4%}")
-        print(f"Bloomberg 1m CPR / PSA     : {bloom.current_cpr_1m} / {bloom.current_psa_1m}")
-        print(f"Proxy remaining term (mo)  : {bloom.proxy_remaining_term_months}")
+        print(f"\nDeal / tranche       : {bloom.deal} / {bloom.tranche_class} ({bloom.tranche_sheet})")
+        print(f"Collateral WAC       : {bloom.collateral_coupon if bloom.collateral_coupon is not None else float('nan'):.4%}")
+        print(f"Tranche coupon       : {bloom.tranche_coupon if bloom.tranche_coupon is not None else float('nan'):.4%}")
+        print(f"1m CPR / PSA         : {bloom.current_cpr_1m} / {bloom.current_psa_1m}")
+        print(f"Proxy remaining term : {bloom.proxy_remaining_term_months} months")
 
-    print("\nInputs used in refi module")
-    print(f"Current note rate : {inputs['current_note_rate']:.4%}")
-    print(f"Remaining term    : {inputs['remaining_term_months']} months")
-    print(f"Max refi SMM      : {params.max_refi_smm:.4%}")
-    print(f"Threshold         : {params.threshold:.4f}")
-    print(f"Dispersion        : {params.dispersion:.4f}")
+    print(f"\nInputs used")
+    print(f"  Current note rate : {inputs['current_note_rate']:.4%}")
+    print(f"  Remaining term    : {inputs['remaining_term_months']} months")
+    print(f"  Max refi SMM      : {params.max_refi_smm:.4%}")
+    print(f"  Threshold         : {params.threshold:.4f}")
+    print(f"  Dispersion        : {params.dispersion:.4f}")
 
-    print("\nAverages at t=0")
-    print(f"Mean payment ratio : {avg_pr[0]:.4f}")
-    print(f"Mean RefiSMM       : {avg_refi[0]:.4%}")
-    print(f"Mean total SMM     : {total_smm[0]:.4%}")
-
-    print("\nFirst 12 months (means)")
-    print("month | pay_ratio | refi_smm | total_smm")
+    print(f"\nFirst 12 months (path averages)")
+    print("month | pay_ratio | refi_smm")
     for m in range(min(12, len(bundle.t_grid))):
-        print(f"{m:5d} | {avg_pr[m]:9.4f} | {avg_refi[m]:8.4%} | {total_smm[m]:8.4%}")
+        print(f"{m+1:5d} | {avg_pr[m]:9.4f} | {avg_refi[m]:8.4%}")
 
 
 if __name__ == "__main__":
     demo_run(tranche_sheet="A Tranche", path_file="rate_paths.npz")
-
-
-# -----------------------------------------------------------------------------
-# Temporary mocks so Jialin can run/test now before the full team integration.
-# -----------------------------------------------------------------------------
-
-def mock_turnover(n_steps: int, base_turnover: float = 0.003) -> np.ndarray:
-    """Flat mock turnover used only for local testing."""
-    return np.full(n_steps, base_turnover, dtype=float)
-
-
-def mock_psi(n_steps: int, psi0: float = 0.80, decay: float = 0.0025) -> np.ndarray:
-    """Simple decaying active-borrower share used only for local testing."""
-    t = np.arange(n_steps)
-    psi = psi0 * np.exp(-decay * t)
-    return np.clip(psi, 0.10, 1.0)
-
-
-# -----------------------------------------------------------------------------
-# Convenience loaders and demo.
-# -----------------------------------------------------------------------------
-
-def load_short_rate_paths(npz_path: str | Path) -> Dict[str, np.ndarray]:
-    """Load the team's .npz path file (uses :func:`load_rate_paths` resolution + synthetic fallback)."""
-    data = load_rate_paths(npz_path)
-    required = {"paths", "t_grid"}
-    missing = required.difference(data.keys())
-    if missing:
-        raise KeyError(f"Missing required keys in {npz_path}: {sorted(missing)}")
-    return data
-
-
-def demo_run(npz_path: str | Path = "rate_paths.npz") -> None:
-    """Quick demo using the team's simulated rate paths."""
-    data = load_short_rate_paths(npz_path)
-    paths = data["paths"]
-    t_grid = data["t_grid"]
-
-    # Placeholder pool assumptions until collateral data are wired in.
-    wac = 0.055                 # 5.50% weighted average coupon
-    wam_months = 360            # can later replace with actual pool WAM
-    params = RefiParams(
-        mortgage_treasury_spread=0.015,
-        max_refi_smm=0.06,
-        threshold=0.95,
-        dispersion=0.03,
-        refi_term_months=360,
-    )
-
-    result = refinancing_smm_paths(
-        short_rate_paths=paths,
-        current_note_rate=wac,
-        remaining_term_months=wam_months,
-        params=params,
-    )
-
-    avg_refi = result["refi_smm"].mean(axis=0)
-    avg_pr = result["payment_ratio"].mean(axis=0)
-
-    # Temporary team-integration mock.
-    turnover = mock_turnover(len(t_grid))
-    psi_t = mock_psi(len(t_grid))
-    apd_smm = apd_aggregate_smm(
-        refi_smm=avg_refi,
-        turnover_smm=turnover,
-        psi_t=psi_t,
-        beta=0.25,
-    )
-
-    print("=" * 70)
-    print("PREPAYMENT REFI DEMO")
-    print("=" * 70)
-    print(f"Loaded paths: {paths.shape[0]:,} x {paths.shape[1]}")
-    print(f"Initial short rate: {paths[0, 0]:.4%}")
-    print(f"Mean payment ratio at t=0: {avg_pr[0]:.4f}")
-    print(f"Mean RefiSMM at t=0: {avg_refi[0]:.4%}")
-    print(f"Mean APD total SMM at t=0: {apd_smm[0]:.4%}")
-    print("\nFirst 12 months (means):")
-    print("month | pay_ratio | refi_smm | total_smm")
-    for m in range(min(12, len(t_grid))):
-        print(f"{m:5d} | {avg_pr[m]:9.4f} | {avg_refi[m]:8.4%} | {apd_smm[m]:8.4%}")
-
-
-if __name__ == "__main__":
-    demo_run("rate_paths.npz")
