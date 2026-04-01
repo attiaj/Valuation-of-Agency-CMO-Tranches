@@ -245,7 +245,7 @@ def main():
     ax.plot(t_grid, theta_plot * 100, 'k--', linewidth=2, label='theta(t)')
     ax.set_xlabel('Time (years)')
     ax.set_ylabel('Short Rate (%)')
-    ax.set_title('Hull-White Interest Rate Paths (100 of 1,000 shown)')
+    ax.set_title(f'Hull-White Interest Rate Paths (100 of {N_PATHS} shown)')
     ax.legend()
     ax.grid(True, alpha=0.3)
     plt.tight_layout()

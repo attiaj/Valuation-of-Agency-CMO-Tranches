@@ -128,23 +128,21 @@ def run_group1_waterfall(
             principal_available = pool_schedprin[path, t] + pool_prepaidprin[path, t]
 
             if la_bal > 1e-8:
-                # ---- LA is still outstanding ----
-
                 # LA receives its coupon
                 la_interest = la_bal * la_monthly
                 la_cf = la_interest
 
-                # LA receives all available principal (up to remaining balance)
+                # LA receives all available principal
                 la_prin = min(principal_available, la_bal)
                 la_cf  += la_prin
                 la_bal  = max(la_bal - la_prin, 0.0)
 
                 # LZ accrues interest (added to balance, NOT paid out)
-                lz_accrual = lz_bal * lz_monthly
-                lz_bal    += lz_accrual
-                lz_cf      = 0.0
+                lz_accrual = min(lz_bal, pool_balance_paths[path, t]) * lz_monthly
+                lz_bal += lz_accrual
+                lz_cf = 0.0
 
-                # Any excess principal after LA is paid off goes to LZ
+                # Excess principal after LA paid off goes to LZ
                 excess_prin = max(principal_available - la_prin, 0.0)
                 if excess_prin > 0 and la_bal <= 1e-8:
                     lz_prin = min(excess_prin, lz_bal)

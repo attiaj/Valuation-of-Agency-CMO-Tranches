@@ -154,7 +154,7 @@ def run_waterfall(g1_output: dict, g2_output: dict) -> dict:
 
     rate_paths = g1_output["bundle"].paths
     M_T = 1.0
-    M_R = 0.840  # from enhanced.py with FICO=759, LTV=81, SATO=97.1bps
+    M_R = 1  # from enhanced.py with FICO=759, LTV=81, SATO=97.1bps
 
     # Extract principal components for Group 1
     print("Extracting principal components (Group 1)...")
@@ -439,7 +439,7 @@ if __name__ == "__main__":
  
     print("\n  Notes:")
     print("  - Model: Hull-White (a=0.021, sigma=0.0096) + APD prepayment")
-    print("  - Paths: 1,000 Monte Carlo, 30-year horizon")
+    print("  - Paths: 10,000 Monte Carlo, 30-year horizon")
     print(f"  - psi_0={PSI_0}, beta={BETA}, M_R=0.840")
     print("  - Effective duration/convexity: cash flows held fixed at shifted rates")
     print("    (full OAD would rerun prepayment model at each rate shift)")

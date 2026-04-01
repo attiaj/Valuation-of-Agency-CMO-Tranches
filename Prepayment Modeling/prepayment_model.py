@@ -74,6 +74,22 @@ GROUP2_INPUTS = {
 # Main function
 # ---------------------------------------------------------------------------
 
+
+def hw_pass_through_beta(a: float, tau: float = 10.0,
+                          mortgage_sensitivity: float = 0.875) -> float:
+    """
+    Compute pass-through beta from Hull-White mean reversion parameter.
+    
+    beta = B(0, tau) / tau * mortgage_sensitivity
+    
+    where B(0, tau) = (1 - exp(-a * tau)) / a
+    """
+    if a < 1e-6:
+        B_over_tau = 1.0  # Ho-Lee limit
+    else:
+        B_over_tau = (1 - np.exp(-a * tau)) / (a * tau)
+    return B_over_tau * mortgage_sensitivity
+
 def run_prepayment_model(
     tranche_sheet: str = "A Tranche",
     path_file: str = "rate_paths.npz",
@@ -138,7 +154,7 @@ def run_prepayment_model(
         tranche_sheet=tranche_sheet,
         path_file=path_file,
     )
-    inputs = inputs = pool_inputs if pool_inputs is not None else GROUP1_INPUTS
+    inputs = pool_inputs if pool_inputs is not None else GROUP1_INPUTS
     rate_paths = bundle.paths          # shape (N_paths, T)
     N_paths, T = rate_paths.shape
     print(f"  Loaded {N_paths:,} paths x {T} steps")
@@ -168,7 +184,25 @@ def run_prepayment_model(
     # Step 3: Compute refi SMM for all paths (vectorized)
     # ------------------------------------------------------------------
     print("Computing refinancing SMM paths...")
+    #Commented chunk below to calc beta from HW in the future if needed
+    # HW mean reversion a is written by hull_white_modeling.path_generation.save_paths
+    # alongside paths; load_project_data_bundle does not expose it on the bundle.
+    # hw_a_default = 0.021033
+    # a = hw_a_default
+    # a_from_npz = False
+    # if bundle.path_file.is_file():
+    #     with np.load(bundle.path_file, allow_pickle=False) as npz:
+    #         if "a" in npz.files:
+    #             a = float(np.asarray(npz["a"]).reshape(-1)[0])
+    #             a_from_npz = True
+    # if not a_from_npz:
+    #     print(
+    #         f"  [note] Using default HW a={a:.6f} "
+    #         "(npz missing on disk or no 'a' key; save_paths from run_full_HW_pipeline includes it)"
+    #     )
+    # beta_pt = hw_pass_through_beta(a)
     params = RefiParams(dispersion=0.10)
+    
 
     # First pass: get t=0 payment ratio for CPR calibration
     prelim = refinancing_smm_paths(
@@ -209,7 +243,9 @@ def run_prepayment_model(
     # ------------------------------------------------------------------
     # Step 4: Enhanced variable multipliers (Bloomberg pool data)
     # ------------------------------------------------------------------
-    M_T, M_R = get_multipliers(pool_data)
+    #M_T, M_R = get_multipliers(pool_data)
+    M_T = 1
+    M_R = 1
     print(f"Enhanced multipliers: M_T={M_T:.3f}, M_R={M_R:.3f}")
 
     # ------------------------------------------------------------------
@@ -313,7 +349,7 @@ if __name__ == "__main__":
         tranche_sheet="LA",
         path_file="rate_paths.npz",
         beta=0.20,       # updated: high SATO pool, more passive borrowers
-        psi_0=0.65,      # updated: purchase-dominated pool, less refi-prone
+        psi_0=1,      # updated: purchase-dominated pool, less refi-prone
         base_dir=base_dir,
     )
 
