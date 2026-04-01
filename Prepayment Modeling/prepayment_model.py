@@ -82,6 +82,7 @@ def run_prepayment_model(
     pool_data: dict = None,
     pool_params: dict = None,
     base_dir=None,
+    pool_inputs: dict = None,    # add this
 ) -> dict:
     """
     Run the full APD prepayment model and return per-path cash flows.
@@ -137,7 +138,7 @@ def run_prepayment_model(
         tranche_sheet=tranche_sheet,
         path_file=path_file,
     )
-    inputs = GROUP1_INPUTS
+    inputs = inputs = pool_inputs if pool_inputs is not None else GROUP1_INPUTS
     rate_paths = bundle.paths          # shape (N_paths, T)
     N_paths, T = rate_paths.shape
     print(f"  Loaded {N_paths:,} paths x {T} steps")

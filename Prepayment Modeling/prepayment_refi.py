@@ -273,7 +273,7 @@ def load_rate_paths(npz_path: str | Path = "rate_paths.npz") -> Dict[str, np.nda
 
 
 def load_treasury_curve(
-    treasury_csv: str | Path = "treasury_rates_20260217.csv",
+    treasury_csv: str | Path = "treasury_rates_20260401.csv",
     ust_csv: str | Path = "ust.csv",
 ) -> Optional[pd.DataFrame]:
     """Load current Treasury curve, falling back to the latest row of ust.csv."""

@@ -61,7 +61,7 @@ def main():
         print("\nLoading saved Treasury data...")
         try:
             # Use path relative to project root (parent_dir)
-            treasury_file = parent_dir / 'data_io' / 'market_data' / 'treasury_rates_20260217.csv'
+            treasury_file = parent_dir / 'data_io' / 'market_data' / 'treasury_rates_20260401.csv'
             treasury_df = pd.read_csv(treasury_file)
             swaption_df = load_sample_swaption_vols()
             print("[OK] Loaded saved data successfully")

@@ -185,8 +185,8 @@ if __name__ == "__main__":
     
     # Load Treasury rates
     treasury_df = load_treasury_rates_from_fred(
-        start_date='2026-02-01',
-        end_date='2026-02-17'
+        start_date='2026-03-01',
+        end_date='2026-03-31'
     )
     
     # Load swaption vols
