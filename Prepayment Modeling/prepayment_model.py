@@ -40,19 +40,33 @@ from utils import scheduled_principal
 # ---------------------------------------------------------------------------
 
 POOL_DATA = {
-    'fico':      None,   # not available at pool level from Bloomberg tranche sheet
-    'ltv':       None,
-    'sato':      None,
-    'loan_size': None,
+    'fico':      759,   # not available at pool level from Bloomberg tranche sheet
+    'ltv':       81,
+    'sato':      97.1,
+    'loan_size': 498370,
 }
 
 POOL_PARAMS = {
-    'wac':               0.065,   # 6.5% collateral WAC from Bloomberg
-    'origination_month': 12,      # December 2024
+    'wac':               0.06471,   # 6.471% collateral WAC from Bloomberg
+    'origination_month': 4,      # December 2024
     'original_term':     360,     # 30-year mortgages
-    'wala_start':        14,      # months seasoned at projection start (Feb 2026)
-    'remaining_term':    299,     # months from next pay to maturity (Bloomberg)
+    'wala_start':        35,      # months seasoned at projection start (Feb 2026)
+    'remaining_term':    316,     # months from next pay to maturity (Bloomberg)
     'initial_balance':   1.0,     # normalized to 1.0
+}
+
+# FNR 2023-23 Group 1 (LA and LZ collateral)
+GROUP1_INPUTS = {
+    "current_note_rate":    0.06471,   # WAC from Bloomberg
+    "remaining_term_months": 316,
+    "observed_cpr_1m":      19.92,     # Bloomberg 1m CPR
+}
+
+# FNR 2023-23 Group 2 (AI collateral)
+GROUP2_INPUTS = {
+    "current_note_rate":    0.04697,   # WAC from Bloomberg
+    "remaining_term_months": 266,
+    "observed_cpr_1m":      3.66,      # Bloomberg 1m CPR
 }
 
 
@@ -123,7 +137,7 @@ def run_prepayment_model(
         tranche_sheet=tranche_sheet,
         path_file=path_file,
     )
-    inputs = infer_refi_inputs_from_bundle(bundle)
+    inputs = GROUP1_INPUTS
     rate_paths = bundle.paths          # shape (N_paths, T)
     N_paths, T = rate_paths.shape
     print(f"  Loaded {N_paths:,} paths x {T} steps")
@@ -213,7 +227,7 @@ def run_prepayment_model(
             if balance <= 1e-6:
                 break
 
-            rem = max(original_term - (wala_start + t), 1)
+            rem = max(remaining_term - t, 1)
 
             # Component SMMs with enhanced multipliers
             t_smm = M_T * turnover_vec[t]
@@ -284,6 +298,7 @@ def discount_cashflows(cashflows: np.ndarray, rate_paths: np.ndarray) -> np.ndar
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    
     import warnings
     warnings.filterwarnings("ignore")
 
@@ -291,14 +306,13 @@ if __name__ == "__main__":
     print("APD PREPAYMENT MODEL + CASH FLOW VALUATION")
     print("=" * 70)
 
-    # base_dir points to data_io/ one level above the Prepayment Modeling folder
     base_dir = Path(__file__).resolve().parent.parent / "data_io"
 
     output = run_prepayment_model(
-        tranche_sheet="A Tranche",
+        tranche_sheet="LA",
         path_file="rate_paths.npz",
-        beta=0.25,
-        psi_0=0.70,
+        beta=0.20,       # updated: high SATO pool, more passive borrowers
+        psi_0=0.65,      # updated: purchase-dominated pool, less refi-prone
         base_dir=base_dir,
     )
 

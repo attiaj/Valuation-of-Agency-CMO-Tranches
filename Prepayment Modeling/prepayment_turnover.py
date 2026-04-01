@@ -55,8 +55,8 @@ SEASONALITY_MAP = {
 }
 
 # Pool constants (FNR 2024-100, Bloomberg data)
-WALA_START      = 14    # WALA at start of projection (months, Dec 2024 -> Feb 2026)
-START_MONTH     = 2     # Calendar month projection begins (February)
+WALA_START      = 35    # WALA at start of projection (months, April 2023 -> March 2026)
+START_MONTH     = 4     # Calendar month projection begins (April)
 BASE_TURNOVER_CPR = 0.06  # Textbook default: 6% CPR annualized
 
 

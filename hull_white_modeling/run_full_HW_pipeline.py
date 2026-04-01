@@ -7,6 +7,7 @@ Demonstrates full workflow from data loading to path generation and validation
 
 import sys
 import os
+import importlib
 from pathlib import Path
 
 # Add parent directory to path to allow imports
@@ -222,6 +223,36 @@ def main():
     print("  • Analyze prepayment sensitivity to rate paths")
     print("  • Price CMO tranches under different scenarios")
     print("\n")
+
+    plt = importlib.import_module("matplotlib.pyplot")
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+    t_grid = params['t_grid']
+
+    n_display = min(100, paths.shape[0])
+    theta_plot = params['theta'][:paths.shape[1]]
+    path_colors = plt.cm.tab20(np.linspace(0, 1, 20))
+    for i in range(n_display):
+        ax.plot(
+            t_grid,
+            paths[i, :] * 100,
+            alpha=0.45,
+            linewidth=0.6,
+            color=path_colors[i % len(path_colors)],
+        )
+
+    ax.plot(t_grid, paths.mean(axis=0) * 100, 'r-', linewidth=2, label='Mean path')
+    ax.plot(t_grid, theta_plot * 100, 'k--', linewidth=2, label='theta(t)')
+    ax.set_xlabel('Time (years)')
+    ax.set_ylabel('Short Rate (%)')
+    ax.set_title('Hull-White Interest Rate Paths (100 of 1,000 shown)')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plot_file = parent_dir / "data_io" / "hw_paths.png"
+    plt.savefig(plot_file, dpi=150, bbox_inches='tight')
+    print(f"[OK] Saved final path plot to {plot_file}")
+    plt.show()
 
 
 if __name__ == "__main__":

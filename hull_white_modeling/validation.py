@@ -2,7 +2,9 @@
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import importlib
+
+plt = importlib.import_module("matplotlib.pyplot")
 
 def plot_rate_paths(paths, params, n_paths_display=50, t_max=30):
     """
@@ -152,8 +154,9 @@ def plot_rate_histogram(paths, params, times=[1, 5, 10, 20, 30]):
             ax.hist(rates, bins=50, alpha=0.7, edgecolor='black')
             ax.axvline(rates.mean(), color='r', linestyle='--', 
                       linewidth=2, label=f'Mean: {rates.mean():.2f}%')
-            ax.axvline(rates.median(), color='g', linestyle='--', 
-                      linewidth=2, label=f'Median: {np.median(rates):.2f}%')
+            median_rate = float(np.median(rates))
+            ax.axvline(median_rate, color='g', linestyle='--', 
+                      linewidth=2, label=f'Median: {median_rate:.2f}%')
             
             ax.set_xlabel('Rate (%)')
             ax.set_ylabel('Frequency')
@@ -236,8 +239,6 @@ def plot_paths_simple(paths, params, n_paths_display=75, save_file=None):
         n_paths_display: Number of paths to show (default 75)
         save_file: Optional filename to save (e.g., 'paths.png')
     """
-    import matplotlib.pyplot as plt
-    
     N_paths = paths.shape[0]
     t_grid = params['t_grid'][:paths.shape[1]]
     theta = params['theta'][:paths.shape[1]]

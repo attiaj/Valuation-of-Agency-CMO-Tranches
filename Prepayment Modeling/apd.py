@@ -8,7 +8,7 @@ and computes the APD aggregate prepayment rate lambda(t).
 Reference: Levin (2001), Davidson & Levin (2014) Chapter 7
 """
 
-
+#init_psi is bypassed in our current CMO, we use 0.65 as derived from the text
 def init_psi(pool_data: dict = None, default: float = 0.70) -> float:
     """
     Initialize psi(0): the starting active borrower fraction.
@@ -34,7 +34,7 @@ def init_psi(pool_data: dict = None, default: float = 0.70) -> float:
     ltv  = pool_data.get('ltv')
 
     if fico is not None:
-        if fico >= 760:
+        if fico >= 750:
             psi = min(psi + 0.05, 0.90)
         elif fico < 660:
             psi = max(psi - 0.10, 0.40)

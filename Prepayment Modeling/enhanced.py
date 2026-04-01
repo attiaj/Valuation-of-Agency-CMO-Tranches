@@ -32,7 +32,7 @@ def _refi_multiplier(fico: float = None, ltv: float = None, sato: float = None) 
 
     # FICO adjustment
     if fico is not None:
-        if fico >= 760:
+        if fico >= 750:
             m_r *= 1.20
         elif fico >= 720:
             m_r *= 1.05
